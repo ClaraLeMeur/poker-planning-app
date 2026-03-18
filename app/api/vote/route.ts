@@ -8,6 +8,6 @@ export async function POST(req: NextRequest) {
   if (!userId || !VALID_CARDS.has(vote)) {
     return NextResponse.json({ error: "Invalid" }, { status: 400 });
   }
-  setVote(userId, vote);
+  await setVote(userId, vote);
   return NextResponse.json({ ok: true });
 }

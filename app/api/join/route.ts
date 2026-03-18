@@ -8,6 +8,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Nickname required" }, { status: 400 });
   }
   const userId = randomUUID();
-  addParticipant(userId, nickname.trim());
+  await addParticipant(userId, nickname.trim());
   return NextResponse.json({ userId });
 }

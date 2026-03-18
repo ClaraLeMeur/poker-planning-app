@@ -1,3 +1,5 @@
+import { Redis } from "@upstash/redis";
+
 export type Participant = {
   id: string;
   nickname: string;
@@ -9,33 +11,45 @@ export type Room = {
   revealed: boolean;
 };
 
-// Global singleton — shared across requests within the same serverless instance
-const g = globalThis as typeof globalThis & { _room?: Room };
+const ROOM_KEY = "poker:room";
+const DEFAULT_ROOM: Room = { participants: {}, revealed: false };
 
-if (!g._room) {
-  g._room = { participants: {}, revealed: false };
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+
+export async function getRoom(): Promise<Room> {
+  const room = await redis.get<Room>(ROOM_KEY);
+  return room ?? DEFAULT_ROOM;
 }
 
-export function getRoom(): Room {
-  return g._room!;
+export async function addParticipant(id: string, nickname: string): Promise<void> {
+  const room = await getRoom();
+  room.participants[id] = { id, nickname, vote: null };
+  await redis.set(ROOM_KEY, room);
 }
 
-export function addParticipant(id: string, nickname: string): void {
-  g._room!.participants[id] = { id, nickname, vote: null };
+export async function setVote(id: string, vote: string): Promise<void> {
+  const room = await getRoom();
+  const p = room.participants[id];
+  if (p) {
+    p.vote = vote;
+    await redis.set(ROOM_KEY, room);
+  }
 }
 
-export function setVote(id: string, vote: string): void {
-  const p = g._room!.participants[id];
-  if (p) p.vote = vote;
+export async function revealVotes(): Promise<void> {
+  const room = await getRoom();
+  room.revealed = true;
+  await redis.set(ROOM_KEY, room);
 }
 
-export function revealVotes(): void {
-  g._room!.revealed = true;
-}
-
-export function resetRound(): void {
-  g._room!.revealed = false;
-  for (const p of Object.values(g._room!.participants)) {
+export async function resetRound(): Promise<void> {
+  const room = await getRoom();
+  room.revealed = false;
+  for (const p of Object.values(room.participants)) {
     p.vote = null;
   }
+  await redis.set(ROOM_KEY, room);
 }
